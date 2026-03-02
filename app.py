@@ -12,7 +12,10 @@ st.set_page_config(
 )
 
 # ── API KEY ──────────────────────────────────────────────────────────────────
-GROQ_API_KEY = st.secrets["groq_api_key"]
+try:
+    GROQ_API_KEY = st.secrets["groq_api_key"]
+except (KeyError, FileNotFoundError):
+    GROQ_API_KEY = None
 
 # ── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -203,6 +206,9 @@ Responda APENAS com JSON válido:
 }}"""
 
 def avaliar_redacao(tema, tipo, titulo, redacao):
+    if not GROQ_API_KEY:
+        raise Exception("🔑 CONFIGURE SUA CHAVE API!\n\n1. Acesse: https://share.streamlit.io\n2. Seu app → ⋮ → Settings → Secrets\n3. Cole: groq_api_key = \"gsk_sua_chave_aqui\"\n4. Save\n\nDepois tente novamente!")
+    
     try:
         client = Groq(api_key=GROQ_API_KEY)
         prompt = get_feedback_prompt(tema, tipo, titulo, redacao)
