@@ -3,6 +3,7 @@ from groq import Groq
 import json
 import re
 import os
+import sys
 
 # ── API Key Configuration ────────────────────────────────────────────────────
 # Lê a chave API direto dos secrets do Streamlit Cloud
@@ -405,30 +406,42 @@ Responda APENAS com JSON válido, sem nenhum texto antes ou depois:
 
 
 def avaliar_redacao(tema: str, tipo: str, titulo: str, redacao: str):
-    api_key = GROQ_API_KEY
+    """
+    Avalia redação usando Groq API com tratamento seguro de cliente
+    """
+    try:
+        # Inicializar cliente com configuração mínima
+        client = Groq(api_key=GROQ_API_KEY)
+        prompt = get_feedback_prompt(tema, tipo, titulo, redacao)
+
+        # Fazer request à API
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            max_tokens=1500,
+            temperature=0.3,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Voce e um corretor especialista em redacoes do ENEM. Responda SEMPRE e SOMENTE com JSON valido, sem markdown e sem texto adicional."
+                },
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        # Processar resposta
+        raw = response.choices[0].message.content.strip()
+        raw = re.sub(r'^```json\s*', '', raw)
+        raw = re.sub(r'^```\s*', '', raw)
+        raw = re.sub(r'\s*```$', '', raw)
+        return json.loads(raw)
     
-    # Inicializa cliente Groq
-    client = Groq(api_key=api_key)
-    prompt = get_feedback_prompt(tema, tipo, titulo, redacao)
-
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        max_tokens=1500,
-        temperature=0.3,
-        messages=[
-            {
-                "role": "system",
-                "content": "Voce e um corretor especialista em redacoes do ENEM. Responda SEMPRE e SOMENTE com JSON valido, sem markdown e sem texto adicional."
-            },
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    raw = response.choices[0].message.content.strip()
-    raw = re.sub(r'^```json\s*', '', raw)
-    raw = re.sub(r'^```\s*', '', raw)
-    raw = re.sub(r'\s*```$', '', raw)
-    return json.loads(raw)
+    except Exception as e:
+        # Tratamento de erro detalhado
+        erro_msg = str(e)
+        if "proxies" in erro_msg:
+            raise ValueError("❌ Erro na versão do Groq. Atualizando... Tente novamente em alguns segundos.")
+        else:
+            raise ValueError(f"❌ Erro ao analisar: {erro_msg}")
 
 
 # ── App layout ────────────────────────────────────────────────────────────────
@@ -522,7 +535,7 @@ if avaliar:
             try:
                 resultado = avaliar_redacao(titulo, tipo, titulo, redacao)
             except Exception as e:
-                st.error(f"❌ Erro ao analisar: {e}")
+                st.error(f"{e}")
                 st.stop()
 
         total = resultado.get("nota_total", 0)
