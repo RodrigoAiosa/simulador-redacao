@@ -156,6 +156,19 @@ html, body, [data-testid="stAppViewContainer"] {
 
 #MainMenu, footer { visibility: hidden; }
 .stDeployButton { display: none; }
+
+/* Estilização das abas (tabs) */
+[data-testid="stTabs"] [aria-selected="false"] {
+    color: #000000 !important;
+}
+
+[data-baseweb="tab-list"] button[aria-selected="false"] {
+    color: #000000 !important;
+}
+
+[data-baseweb="tab"] [aria-selected="false"] {
+    color: #000000 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
