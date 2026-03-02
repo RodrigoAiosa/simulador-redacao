@@ -229,7 +229,10 @@ def avaliar_redacao(tema, tipo, titulo, redacao):
         raw = re.sub(r'\s*```$', '', raw)
         return json.loads(raw)
     except Exception as e:
-        raise Exception(f"Erro: {str(e)}")
+        erro = str(e)
+        if "proxies" in erro.lower():
+            raise Exception("❌ Erro de compatibilidade. Por favor, aguarde alguns segundos e tente novamente.")
+        raise Exception(f"Erro: {erro}")
 
 # ── APP LAYOUT ───────────────────────────────────────────────────────────────
 
