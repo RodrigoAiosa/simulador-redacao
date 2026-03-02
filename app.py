@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import re
 import requests
+import random
 
 # ── PAGE CONFIG ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -27,73 +28,24 @@ if "redacao" not in st.session_state:
 if "auto_avaliar" not in st.session_state:
     st.session_state.auto_avaliar = False
 
-# ── CSS PREMIUM ──────────────────────────────────────────────────────────────
+if "tema_ia" not in st.session_state:
+    st.session_state.tema_ia = ""
+
+# ── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
 
-:root {
-    --ink: #0f0e0d;
-    --paper: #f5f0e8;
-    --accent: #c8390a;
-    --border: #d4cabb;
-    --muted: #6b6457;
-}
-
-/* Fundo geral */
-html, body, [data-testid="stAppViewContainer"] {
-    background-color: var(--paper) !important;
-    font-family: 'IBM Plex Sans', sans-serif;
-    color: var(--ink);
-}
-
-/* Remove elementos Streamlit */
-[data-testid="stHeader"] { background: transparent !important; }
-[data-testid="stToolbar"] { display: none; }
-#MainMenu, footer { visibility: hidden; }
-.stDeployButton { display: none; }
-
-/* Título */
-h1 {
-    font-family: 'Playfair Display', serif;
-    font-weight: 900;
-    letter-spacing: -0.5px;
-}
-
-/* Inputs */
+/* INPUTS TEXTO BRANCO */
 .stTextInput input,
 .stTextArea textarea,
 .stSelectbox div[data-baseweb="select"] > div {
-    background: var(--ink) !important;
     color: white !important;
-    border: 1px solid var(--border) !important;
+    background-color: #1a1a1a !important;
 }
 
-/* Placeholder */
 .stTextInput input::placeholder,
 .stTextArea textarea::placeholder {
     color: rgba(255,255,255,0.6) !important;
-}
-
-/* Foco elegante */
-.stTextInput input:focus,
-.stTextArea textarea:focus {
-    border: 1px solid var(--accent) !important;
-    box-shadow: 0 0 0 1px var(--accent) !important;
-}
-
-/* Botões */
-.stButton > button {
-    background: var(--accent) !important;
-    color: white !important;
-    border: none !important;
-    font-weight: 500;
-    transition: all 0.2s ease;
-}
-
-.stButton > button:hover {
-    background: #a02d07 !important;
-    transform: translateY(-1px);
 }
 
 </style>
@@ -101,26 +53,37 @@ h1 {
 
 # ── FUNÇÕES ───────────────────────────────────────────────────────────────────
 
-def count_words(text):
-    return len(text.split()) if text.strip() else 0
+def gerar_tema_ia():
+    if not GROQ_API_KEY:
+        raise Exception("Configure a API Key.")
 
-def count_lines(text):
-    return len([l for l in text.split('\n') if l.strip()])
+    prompt = """
+Gere um único tema inédito para redação do ENEM.
+Tema atual, relevante, em formato oficial do ENEM.
+Apenas o tema.
+"""
 
-def score_color(score):
-    if score >= 160: return ("#1a6b3c", "excelente")
-    if score >= 120: return ("#b8922a", "bom")
-    if score >= 80: return ("#d4820a", "regular")
-    return ("#c8390a", "fraco")
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": "Apenas o tema."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 200,
+        "temperature": 0.8
+    }
 
-def nivel_texto(total):
-    if total >= 900: return "Excelência — desempenho de elite"
-    if total >= 750: return "Muito Bom — acima da média"
-    if total >= 600: return "Bom — desempenho sólido"
-    if total >= 400: return "Regular — há espaço para crescer"
-    return "Iniciante — continue praticando!"
+    response = requests.post(url, json=payload, headers=headers, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+    return data['choices'][0]['message']['content'].strip()
 
-# ── GERAR REDAÇÃO ────────────────────────────────────────────────────────────
+
 def gerar_redacao_nota_maxima(tema):
     if not GROQ_API_KEY:
         raise Exception("Configure a API Key.")
@@ -158,7 +121,7 @@ Apenas o texto.
     data = response.json()
     return data['choices'][0]['message']['content'].strip()
 
-# ── AVALIAÇÃO ────────────────────────────────────────────────────────────────
+
 def get_feedback_prompt(tema, tipo, titulo, redacao):
     return f"""
 Você é um professor especialista em redação do ENEM.
@@ -171,8 +134,23 @@ REDAÇÃO:
 {redacao}
 
 Avalie nas 5 competências do ENEM.
-Responda APENAS com JSON válido.
+Responda APENAS com JSON válido no formato:
+
+{{
+"nota_total": 0,
+"competencias": [
+    {{"numero": 1, "nome": "", "nota": 0, "feedback": ""}},
+    {{"numero": 2, "nome": "", "nota": 0, "feedback": ""}},
+    {{"numero": 3, "nome": "", "nota": 0, "feedback": ""}},
+    {{"numero": 4, "nome": "", "nota": 0, "feedback": ""}},
+    {{"numero": 5, "nome": "", "nota": 0, "feedback": ""}}
+],
+"comentario_geral": "",
+"pontos_fortes": [],
+"sugestoes": []
+}}
 """
+
 
 def avaliar_redacao(tema, tipo, titulo, redacao):
     if not GROQ_API_KEY:
@@ -200,6 +178,7 @@ def avaliar_redacao(tema, tipo, titulo, redacao):
 
     data = response.json()
     raw = data['choices'][0]['message']['content'].strip()
+
     raw = re.sub(r'^```json\s*', '', raw)
     raw = re.sub(r'^```\s*', '', raw)
     raw = re.sub(r'\s*```$', '', raw)
@@ -216,15 +195,32 @@ with col_left:
 
     st.subheader("Tema Sugerido")
 
-    tema_sugerido = st.selectbox(
+    temas_fixos = [
+        "Saúde mental da juventude na era digital",
+        "Regulamentação da Inteligência Artificial no Brasil",
+        "Mudanças climáticas e justiça social",
+        "Inclusão digital como direito fundamental"
+    ]
+
+    opcao = st.selectbox(
         "Escolha um tema",
-        [
-            "Saúde mental da juventude na era digital",
-            "Regulamentação da Inteligência Artificial no Brasil",
-            "Mudanças climáticas e justiça social",
-            "Inclusão digital como direito fundamental"
-        ]
+        ["🎯 Gerar tema automaticamente com IA"] + temas_fixos
     )
+
+    if opcao == "🎯 Gerar tema automaticamente com IA":
+        if st.button("Gerar Tema IA"):
+            with st.spinner("Gerando tema..."):
+                tema_gerado = gerar_tema_ia()
+                st.session_state.tema_ia = tema_gerado
+                st.success("Tema gerado!")
+
+        if st.session_state.tema_ia:
+            st.info(st.session_state.tema_ia)
+            tema_sugerido = st.session_state.tema_ia
+        else:
+            tema_sugerido = ""
+    else:
+        tema_sugerido = opcao
 
     if st.button("✦ Gerar Redação Modelo"):
         with st.spinner("Gerando redação..."):
@@ -257,7 +253,7 @@ if avaliar_btn or st.session_state.auto_avaliar:
         st.error("Informe o título.")
     else:
         with st.spinner("Analisando..."):
-            resultado = avaliar_redacao(tema_sugerido, tipo, titulo, redacao)
+            resultado = avaliar_redacao(titulo, tipo, titulo, redacao)
 
         total = resultado.get("nota_total", 0)
         st.success(f"Nota estimada: {total}/1000")
