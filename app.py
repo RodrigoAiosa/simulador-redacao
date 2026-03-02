@@ -487,27 +487,42 @@ with tab2:
         )
         
         st.markdown('<span class="section-label" style="margin-top:1rem;display:block;">02 — Título Gerado</span>', unsafe_allow_html=True)
-        titulo_gerado = st.text_input(
-            "Título",
-            placeholder="O título gerado aparecerá aqui...",
-            label_visibility="collapsed",
-            key="titulo_gerado_field"
-        )
+        titulo_gerado_display = st.empty()
         
         st.markdown('<span class="section-label" style="margin-top:1rem;display:block;">03 — Redação Gerada</span>', unsafe_allow_html=True)
-        redacao_gerada = st.text_area(
-            "Redação",
-            placeholder="Sua redação gerada aparecerá aqui...",
-            height=280,
-            label_visibility="collapsed",
-            key="redacao_gerada_field"
-        )
+        redacao_gerado_display = st.empty()
         
-        if redacao_gerada:
-            wc = count_words(redacao_gerada)
-            lc = count_lines(redacao_gerada)
-            status = "✓" if lc >= 7 else ("~" if lc >= 4 else "!")
-            st.caption(f"{status} {wc} palavras · {lc} linhas")
+        # Inicializar session state se não existir
+        if "titulo_gerado" not in st.session_state:
+            st.session_state.titulo_gerado = ""
+        if "redacao_gerada_text" not in st.session_state:
+            st.session_state.redacao_gerada_text = ""
+        
+        # Exibir valores
+        with titulo_gerado_display.container():
+            st.text_input(
+                "Título",
+                placeholder="O título gerado aparecerá aqui...",
+                label_visibility="collapsed",
+                value=st.session_state.titulo_gerado,
+                disabled=True
+            )
+        
+        with redacao_gerado_display.container():
+            redacao_text = st.text_area(
+                "Redação",
+                placeholder="Sua redação gerada aparecerá aqui...",
+                height=280,
+                label_visibility="collapsed",
+                value=st.session_state.redacao_gerada_text,
+                disabled=True
+            )
+            
+            if st.session_state.redacao_gerada_text:
+                wc = count_words(st.session_state.redacao_gerada_text)
+                lc = count_lines(st.session_state.redacao_gerada_text)
+                status = "✓" if lc >= 7 else ("~" if lc >= 4 else "!")
+                st.caption(f"{status} {wc} palavras · {lc} linhas")
     
     with col_right:
         st.markdown('<span class="section-label">04 — Ações</span>', unsafe_allow_html=True)
@@ -541,19 +556,13 @@ with tab2:
             except Exception as e:
                 st.error(f"Erro ao gerar: {e}")
     
-    # ── RECARREGAR CAMPOS ────────────────────────────────────────────────
-    if "titulo_gerado" in st.session_state:
-        st.session_state.titulo_gerado_field = st.session_state.titulo_gerado
-    if "redacao_gerada_text" in st.session_state:
-        st.session_state.redacao_gerada_field = st.session_state.redacao_gerada_text
-    
     # ── AVALIAÇÃO ────────────────────────────────────────────────────────
     if avaliar_btn_gen:
-        if not st.session_state.get("redacao_gerada_text"):
+        if not st.session_state.redacao_gerada_text:
             st.error("Gere uma redação primeiro!")
         else:
-            titulo_para_avaliar = st.session_state.get("titulo_gerado", "Redação Gerada")
-            redacao_para_avaliar = st.session_state.get("redacao_gerada_text", "")
+            titulo_para_avaliar = st.session_state.titulo_gerado
+            redacao_para_avaliar = st.session_state.redacao_gerada_text
             
             with st.spinner("Avaliando..."):
                 try:
