@@ -5,12 +5,8 @@ import re
 import os
 
 # ── API Key Configuration ────────────────────────────────────────────────────
-# Para deploy no Streamlit Cloud, configure a variável de ambiente no secrets.toml
-# ou nas configurações do Streamlit Cloud
-try:
-    GROQ_API_KEY = st.secrets["groq_api_key"]
-except (KeyError, FileNotFoundError):
-    GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+# Lê a chave API direto dos secrets do Streamlit Cloud
+GROQ_API_KEY = st.secrets["groq_api_key"]
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -410,8 +406,6 @@ Responda APENAS com JSON válido, sem nenhum texto antes ou depois:
 
 def avaliar_redacao(tema: str, tipo: str, titulo: str, redacao: str):
     api_key = GROQ_API_KEY
-    if not api_key:
-        raise ValueError("❌ Configure sua chave API Groq no arquivo secrets.toml ou nas variáveis de ambiente.")
     
     client = Groq(api_key=api_key)
     prompt = get_feedback_prompt(tema, tipo, titulo, redacao)
