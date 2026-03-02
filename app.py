@@ -3,7 +3,9 @@ import json
 import re
 import requests
 
-# ── PAGE CONFIG ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# CONFIGURAÇÃO DA PÁGINA
+# ─────────────────────────────────────────────
 st.set_page_config(
     page_title="RedaçãoIA · ENEM",
     page_icon="✍️",
@@ -11,13 +13,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── API KEY ──────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# API KEY
+# ─────────────────────────────────────────────
 try:
     GROQ_API_KEY = st.secrets["groq_api_key"]
-except (KeyError, FileNotFoundError):
+except Exception:
     GROQ_API_KEY = None
 
-# ── SESSION STATE ────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# SESSION STATE
+# ─────────────────────────────────────────────
 if "titulo" not in st.session_state:
     st.session_state.titulo = ""
 
@@ -27,11 +33,13 @@ if "redacao" not in st.session_state:
 if "auto_avaliar" not in st.session_state:
     st.session_state.auto_avaliar = False
 
-# ── CSS ──────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# CSS PERSONALIZADO
+# ─────────────────────────────────────────────
 st.markdown("""
 <style>
 
-/* INPUTS TEXTO BRANCO */
+/* Texto branco nas caixas */
 .stTextInput input,
 .stTextArea textarea,
 .stSelectbox div[data-baseweb="select"] > div {
@@ -47,40 +55,37 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── FUNÇÕES ───────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# FUNÇÕES AUXILIARES
+# ─────────────────────────────────────────────
 
-def count_words(text):
-    return len(text.split()) if text.strip() else 0
+def gerar_fallback_erro(mensagem):
+    return {
+        "nota_total": 0,
+        "competencias": [
+            {"numero": 1, "nome": "Domínio da Norma Culta", "nota": 0, "feedback": mensagem},
+            {"numero": 2, "nome": "Compreensão do Tema", "nota": 0, "feedback": mensagem},
+            {"numero": 3, "nome": "Argumentação", "nota": 0, "feedback": mensagem},
+            {"numero": 4, "nome": "Coesão e Coerência", "nota": 0, "feedback": mensagem},
+            {"numero": 5, "nome": "Proposta de Intervenção", "nota": 0, "feedback": mensagem}
+        ],
+        "comentario_geral": "Não foi possível analisar automaticamente.",
+        "pontos_fortes": [],
+        "sugestoes": []
+    }
 
-def count_lines(text):
-    return len([l for l in text.split('\n') if l.strip()])
-
-def score_color(score):
-    if score >= 160: return ("#1a6b3c", "excelente")
-    if score >= 120: return ("#b8922a", "bom")
-    if score >= 80: return ("#d4820a", "regular")
-    return ("#c8390a", "fraco")
-
-def nivel_texto(total):
-    if total >= 900: return "Excelência — desempenho de elite"
-    if total >= 750: return "Muito Bom — acima da média"
-    if total >= 600: return "Bom — desempenho sólido"
-    if total >= 400: return "Regular — há espaço para crescer"
-    return "Iniciante — continue praticando!"
-
-# ── GERAR REDAÇÃO ────────────────────────────────────────────────────────────
 def gerar_redacao_nota_maxima(tema):
     if not GROQ_API_KEY:
-        raise Exception("Configure a API Key.")
+        raise Exception("Configure a API Key no secrets.")
 
     prompt = f"""
-Gere uma redação dissertativo-argumentativa estilo ENEM nota 1000.
+Gere uma redação dissertativo-argumentativa modelo ENEM nota 1000.
 
 Tema: {tema}
 
 Estrutura:
 - Introdução
-- 2 desenvolvimentos
+- Dois parágrafos de desenvolvimento
 - Conclusão com proposta de intervenção completa
 
 Apenas o texto.
@@ -94,7 +99,7 @@ Apenas o texto.
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [
-            {"role": "system", "content": "Apenas texto da redação."},
+            {"role": "system", "content": "Responda apenas com o texto da redação."},
             {"role": "user", "content": prompt}
         ],
         "max_tokens": 1800,
@@ -103,13 +108,13 @@ Apenas o texto.
 
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     response.raise_for_status()
-    data = response.json()
-    return data['choices'][0]['message']['content'].strip()
 
-# ── AVALIAÇÃO (ORIGINAL) ─────────────────────────────────────────────────────
+    data = response.json()
+    return data["choices"][0]["message"]["content"].strip()
+
 def get_feedback_prompt(tema, tipo, titulo, redacao):
     return f"""
-Você é um professor especialista em redação do ENEM.
+Você é um professor especialista em correção de redação do ENEM.
 
 TEMA: {tema}
 TÍTULO: {titulo}
@@ -118,8 +123,22 @@ TIPO: {tipo}
 REDAÇÃO:
 {redacao}
 
-Avalie nas 5 competências do ENEM.
-Responda APENAS com JSON válido.
+Avalie nas 5 competências do ENEM (0 a 200 cada).
+Retorne apenas JSON no formato:
+
+{{
+  "nota_total": 0-1000,
+  "competencias": [
+    {{"numero": 1, "nome": "", "nota": 0-200, "feedback": ""}},
+    {{"numero": 2, "nome": "", "nota": 0-200, "feedback": ""}},
+    {{"numero": 3, "nome": "", "nota": 0-200, "feedback": ""}},
+    {{"numero": 4, "nome": "", "nota": 0-200, "feedback": ""}},
+    {{"numero": 5, "nome": "", "nota": 0-200, "feedback": ""}}
+  ],
+  "comentario_geral": "",
+  "pontos_fortes": [],
+  "sugestoes": []
+}}
 """
 
 def avaliar_redacao(tema, tipo, titulo, redacao):
@@ -133,28 +152,39 @@ def avaliar_redacao(tema, tipo, titulo, redacao):
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
+
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [
-            {"role": "system", "content": "Responda APENAS com JSON válido."},
+            {"role": "system", "content": "Responda apenas com JSON válido."},
             {"role": "user", "content": prompt}
         ],
         "max_tokens": 1500,
-        "temperature": 0.3
+        "temperature": 0.2
     }
 
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     response.raise_for_status()
 
     data = response.json()
-    raw = data['choices'][0]['message']['content'].strip()
-    raw = re.sub(r'^```json\s*', '', raw)
-    raw = re.sub(r'^```\s*', '', raw)
-    raw = re.sub(r'\s*```$', '', raw)
+    raw = data["choices"][0]["message"]["content"].strip()
 
-    return json.loads(raw)
+    # Extrai apenas o JSON
+    match = re.search(r'\{.*\}', raw, re.DOTALL)
 
-# ── LAYOUT ───────────────────────────────────────────────────────────────────
+    if not match:
+        return gerar_fallback_erro("Resposta fora do padrão JSON.")
+
+    json_text = match.group(0)
+
+    try:
+        return json.loads(json_text)
+    except json.JSONDecodeError:
+        return gerar_fallback_erro("Erro ao decodificar JSON da IA.")
+
+# ─────────────────────────────────────────────
+# INTERFACE
+# ─────────────────────────────────────────────
 
 st.title("RedaçãoIA")
 
@@ -186,15 +216,16 @@ with col_left:
     titulo = st.text_input("Título", value=st.session_state.titulo)
 
     st.subheader("Redação")
-    redacao = st.text_area("Redação", height=300, value=st.session_state.redacao)
+    redacao = st.text_area("Redação", height=350, value=st.session_state.redacao)
 
 with col_right:
 
     tipo = st.selectbox("Tipo", ["Dissertativo-Argumentativo (ENEM)"])
-
     avaliar_btn = st.button("✦ Avaliar Redação")
 
-# ── RESULTADOS ───────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# RESULTADO
+# ─────────────────────────────────────────────
 
 if avaliar_btn or st.session_state.auto_avaliar:
 
@@ -205,8 +236,8 @@ if avaliar_btn or st.session_state.auto_avaliar:
     elif not titulo:
         st.error("Informe o título.")
     else:
-        with st.spinner("Analisando..."):
-            resultado = avaliar_redacao(titulo, tipo, titulo, redacao)
+        with st.spinner("Analisando redação..."):
+            resultado = avaliar_redacao(tema_sugerido, tipo, titulo, redacao)
 
         total = resultado.get("nota_total", 0)
         st.success(f"Nota estimada: {total}/1000")
@@ -222,6 +253,6 @@ if avaliar_btn or st.session_state.auto_avaliar:
         for p in resultado.get("pontos_fortes", []):
             st.write("•", p)
 
-        st.subheader("Melhorar")
+        st.subheader("Sugestões de Melhoria")
         for s in resultado.get("sugestoes", []):
             st.write("•", s)
