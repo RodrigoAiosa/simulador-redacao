@@ -114,7 +114,6 @@ html, body, [data-testid="stAppViewContainer"] {
 .prog-bg {
     background: var(--cream);
     height: 6px;
-    border-radius: 0;
     margin: 0.5rem 0 0.8rem;
     overflow: hidden;
 }
@@ -138,8 +137,17 @@ html, body, [data-testid="stAppViewContainer"] {
     color: white;
 }
 
-.stTextInput input {
-    color: #000 !important;
+/* INPUTS COM TEXTO BRANCO */
+.stTextInput input,
+.stTextArea textarea,
+.stSelectbox div[data-baseweb="select"] > div {
+    color: white !important;
+    background-color: #1a1a1a !important;
+}
+
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder {
+    color: rgba(255,255,255,0.7) !important;
 }
 
 .stButton > button {
@@ -243,6 +251,7 @@ with col_left:
             texto = gerar_redacao_nota_maxima(tema_sugerido)
             st.session_state["titulo"] = tema_sugerido
             st.session_state["redacao"] = texto
+            st.session_state["auto_avaliar"] = True
             st.rerun()
 
     st.markdown('<span class="section-label">01 — Título</span>', unsafe_allow_html=True)
@@ -262,4 +271,8 @@ with col_right:
 
     avaliar_btn = st.button("✦ Avaliar Redação", use_container_width=True)
 
-# RESULTADO (mantido igual lógica principal se desejar adicionar depois)
+# ── AUTO AVALIAÇÃO ───────────────────────────────────────────────────────────
+
+if avaliar_btn or st.session_state.get("auto_avaliar"):
+    st.session_state["auto_avaliar"] = False
+    st.success("Avaliação iniciada automaticamente.")
