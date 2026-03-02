@@ -238,7 +238,7 @@ st.markdown('<div class="hero"><h1>Redação<span>IA</span></h1><p>Avaliação i
 col_left, col_right = st.columns([3, 2], gap="large")
 
 with col_left:
-    st.markdown('<span class="section-label">01 — Título</span>', unsafe_allow_html=True)
+    st.markdown('<span class="section-label" style="color: white;">01 — Título</span>', unsafe_allow_html=True)
     titulo = st.text_input("Título", placeholder="Ex: IA na educação brasileira", label_visibility="collapsed")
     
     st.markdown('<span class="section-label" style="margin-top:1rem;display:block;">02 — Redação</span>', unsafe_allow_html=True)
