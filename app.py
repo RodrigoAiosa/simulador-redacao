@@ -17,127 +17,21 @@ try:
 except (KeyError, FileNotFoundError):
     GROQ_API_KEY = None
 
+# ── SESSION STATE ────────────────────────────────────────────────────────────
+if "titulo" not in st.session_state:
+    st.session_state.titulo = ""
+
+if "redacao" not in st.session_state:
+    st.session_state.redacao = ""
+
+if "auto_avaliar" not in st.session_state:
+    st.session_state.auto_avaliar = False
+
 # ── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
-:root {
-    --ink: #0f0e0d;
-    --paper: #f5f0e8;
-    --cream: #ede7d5;
-    --accent: #c8390a;
-    --accent2: #1a6b3c;
-    --gold: #b8922a;
-    --muted: #6b6457;
-    --border: #d4cabb;
-}
-
-html, body, [data-testid="stAppViewContainer"] {
-    background-color: var(--paper) !important;
-    font-family: 'IBM Plex Sans', sans-serif;
-    color: var(--ink);
-}
-
-[data-testid="stHeader"] { background: transparent !important; }
-[data-testid="stToolbar"] { display: none; }
-
-.hero {
-    text-align: center;
-    padding: 3rem 1rem 2rem;
-}
-.hero h1 {
-    font-family: 'Playfair Display', serif;
-    font-size: clamp(2.4rem, 6vw, 4rem);
-    font-weight: 900;
-    color: var(--ink);
-    margin: 0;
-}
-.hero h1 span { color: var(--accent); }
-.hero p {
-    font-size: 1rem;
-    color: var(--muted);
-    font-weight: 300;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
-.section-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.68rem;
-    font-weight: 500;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 0.4rem;
-    display: block;
-}
-
-.card {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 2px;
-    padding: 1.5rem 1.8rem;
-    margin-bottom: 1rem;
-    box-shadow: 2px 3px 0 var(--cream);
-}
-
-.comp-card {
-    background: white;
-    border-left: 4px solid var(--border);
-    padding: 1.2rem 1.4rem;
-    margin-bottom: 0.8rem;
-}
-.comp-card.excelente { border-left-color: var(--accent2); }
-.comp-card.bom { border-left-color: var(--gold); }
-.comp-card.regular { border-left-color: #d4820a; }
-.comp-card.fraco { border-left-color: var(--accent); }
-
-.comp-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.6rem;
-}
-.comp-title {
-    font-weight: 600;
-    font-size: 0.88rem;
-    color: var(--ink);
-}
-.comp-score {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: var(--ink);
-}
-
-.prog-bg {
-    background: var(--cream);
-    height: 6px;
-    margin: 0.5rem 0 0.8rem;
-    overflow: hidden;
-}
-.prog-fill {
-    height: 100%;
-    transition: width 0.6s ease;
-}
-
-.total-score {
-    text-align: center;
-    padding: 2rem;
-    background: var(--ink);
-    color: var(--paper);
-    margin-bottom: 1.5rem;
-}
-.total-score .number {
-    font-family: 'Playfair Display', serif;
-    font-size: 5rem;
-    font-weight: 900;
-    line-height: 1;
-    color: white;
-}
-
-/* INPUTS COM TEXTO BRANCO */
+/* INPUTS TEXTO BRANCO */
 .stTextInput input,
 .stTextArea textarea,
 .stSelectbox div[data-baseweb="select"] > div {
@@ -147,23 +41,13 @@ html, body, [data-testid="stAppViewContainer"] {
 
 .stTextInput input::placeholder,
 .stTextArea textarea::placeholder {
-    color: rgba(255,255,255,0.7) !important;
+    color: rgba(255,255,255,0.6) !important;
 }
 
-.stButton > button {
-    background: var(--accent) !important;
-    color: white !important;
-}
-.stButton > button:hover {
-    background: #a02d07 !important;
-}
-
-#MainMenu, footer { visibility: hidden; }
-.stDeployButton { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── HELPERS ───────────────────────────────────────────────────────────────────
+# ── FUNÇÕES ───────────────────────────────────────────────────────────────────
 
 def count_words(text):
     return len(text.split()) if text.strip() else 0
@@ -184,6 +68,7 @@ def nivel_texto(total):
     if total >= 400: return "Regular — há espaço para crescer"
     return "Iniciante — continue praticando!"
 
+# ── GERAR REDAÇÃO ────────────────────────────────────────────────────────────
 def gerar_redacao_nota_maxima(tema):
     if not GROQ_API_KEY:
         raise Exception("Configure a API Key.")
@@ -221,14 +106,63 @@ Apenas o texto.
     data = response.json()
     return data['choices'][0]['message']['content'].strip()
 
-# ── APP ───────────────────────────────────────────────────────────────────────
+# ── AVALIAÇÃO (ORIGINAL) ─────────────────────────────────────────────────────
+def get_feedback_prompt(tema, tipo, titulo, redacao):
+    return f"""
+Você é um professor especialista em redação do ENEM.
 
-st.markdown('<div class="hero"><h1>Redação<span>IA</span></h1><p>Avaliação inteligente · 5 competências · Estilo ENEM</p></div>', unsafe_allow_html=True)
+TEMA: {tema}
+TÍTULO: {titulo}
+TIPO: {tipo}
 
-col_left, col_right = st.columns([3, 2], gap="large")
+REDAÇÃO:
+{redacao}
+
+Avalie nas 5 competências do ENEM.
+Responda APENAS com JSON válido.
+"""
+
+def avaliar_redacao(tema, tipo, titulo, redacao):
+    if not GROQ_API_KEY:
+        raise Exception("Configure sua API Key.")
+
+    prompt = get_feedback_prompt(tema, tipo, titulo, redacao)
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": "Responda APENAS com JSON válido."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 1500,
+        "temperature": 0.3
+    }
+
+    response = requests.post(url, json=payload, headers=headers, timeout=30)
+    response.raise_for_status()
+
+    data = response.json()
+    raw = data['choices'][0]['message']['content'].strip()
+    raw = re.sub(r'^```json\s*', '', raw)
+    raw = re.sub(r'^```\s*', '', raw)
+    raw = re.sub(r'\s*```$', '', raw)
+
+    return json.loads(raw)
+
+# ── LAYOUT ───────────────────────────────────────────────────────────────────
+
+st.title("RedaçãoIA")
+
+col_left, col_right = st.columns([3,2])
 
 with col_left:
-    st.markdown('<span class="section-label">Tema Sugerido</span>', unsafe_allow_html=True)
+
+    st.subheader("Tema Sugerido")
 
     tema_sugerido = st.selectbox(
         "Escolha um tema",
@@ -236,43 +170,58 @@ with col_left:
             "Saúde mental da juventude na era digital",
             "Regulamentação da Inteligência Artificial no Brasil",
             "Mudanças climáticas e justiça social",
-            "Inclusão digital como direito fundamental",
-            "Desinformação e democracia no Brasil",
-            "Segurança nas escolas e cultura de paz",
-            "Desafios da educação pública na redução das desigualdades"
-        ],
-        label_visibility="collapsed"
+            "Inclusão digital como direito fundamental"
+        ]
     )
 
-    gerar_btn = st.button("✦ Gerar Redação Modelo (Nota Alta)")
-
-    if gerar_btn:
+    if st.button("✦ Gerar Redação Modelo"):
         with st.spinner("Gerando redação..."):
             texto = gerar_redacao_nota_maxima(tema_sugerido)
-            st.session_state["titulo"] = tema_sugerido
-            st.session_state["redacao"] = texto
-            st.session_state["auto_avaliar"] = True
+            st.session_state.titulo = tema_sugerido
+            st.session_state.redacao = texto
+            st.session_state.auto_avaliar = True
             st.rerun()
 
-    st.markdown('<span class="section-label">01 — Título</span>', unsafe_allow_html=True)
-    titulo = st.text_input("Título", value=st.session_state.get("titulo",""), label_visibility="collapsed")
+    st.subheader("Título")
+    titulo = st.text_input("Título", value=st.session_state.titulo)
 
-    st.markdown('<span class="section-label" style="margin-top:1rem;">02 — Redação</span>', unsafe_allow_html=True)
-    redacao = st.text_area("Redação", value=st.session_state.get("redacao",""), height=320, label_visibility="collapsed")
-
-    if redacao:
-        wc = count_words(redacao)
-        lc = count_lines(redacao)
-        st.caption(f"{wc} palavras · {lc} linhas")
+    st.subheader("Redação")
+    redacao = st.text_area("Redação", height=300, value=st.session_state.redacao)
 
 with col_right:
-    st.markdown('<span class="section-label">03 — Tipo</span>', unsafe_allow_html=True)
-    tipo = st.selectbox("Tipo", ["Dissertativo-Argumentativo (ENEM)"], label_visibility="collapsed")
 
-    avaliar_btn = st.button("✦ Avaliar Redação", use_container_width=True)
+    tipo = st.selectbox("Tipo", ["Dissertativo-Argumentativo (ENEM)"])
 
-# ── AUTO AVALIAÇÃO ───────────────────────────────────────────────────────────
+    avaliar_btn = st.button("✦ Avaliar Redação")
 
-if avaliar_btn or st.session_state.get("auto_avaliar"):
-    st.session_state["auto_avaliar"] = False
-    st.success("Avaliação iniciada automaticamente.")
+# ── RESULTADOS ───────────────────────────────────────────────────────────────
+
+if avaliar_btn or st.session_state.auto_avaliar:
+
+    st.session_state.auto_avaliar = False
+
+    if not redacao or len(redacao.strip()) < 50:
+        st.error("Escreva uma redação com pelo menos 50 caracteres.")
+    elif not titulo:
+        st.error("Informe o título.")
+    else:
+        with st.spinner("Analisando..."):
+            resultado = avaliar_redacao(titulo, tipo, titulo, redacao)
+
+        total = resultado.get("nota_total", 0)
+        st.success(f"Nota estimada: {total}/1000")
+
+        for comp in resultado.get("competencias", []):
+            st.write(f"C{comp['numero']} - {comp['nome']}: {comp['nota']}/200")
+            st.caption(comp["feedback"])
+
+        st.subheader("Comentário Geral")
+        st.write(resultado.get("comentario_geral", ""))
+
+        st.subheader("Pontos Fortes")
+        for p in resultado.get("pontos_fortes", []):
+            st.write("•", p)
+
+        st.subheader("Melhorar")
+        for s in resultado.get("sugestoes", []):
+            st.write("•", s)
