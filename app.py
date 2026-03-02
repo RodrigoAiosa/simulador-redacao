@@ -241,20 +241,13 @@ Crie uma redação dissertativo-argumentativa sobre o seguinte tema:
 
 TEMA: {tema}
 
-Gere EXATAMENTE:
-1. Um TÍTULO criativo e relevante (máximo 10 palavras)
-2. Uma REDAÇÃO completa com:
-   - Introdução (parágrafo de apresentação do tema)
-   - 2-3 parágrafos de desenvolvimento (argumentação com exemplos)
-   - Conclusão com proposta de intervenção
+Gere EXATAMENTE um título e uma redação.
 
-A redação deve ter entre 250-300 palavras, ser clara, coerente e seguir o padrão ENEM.
+IMPORTANTE: Responda APENAS com JSON válido, nada mais:
 
-Responda APENAS com JSON válido, sem markdown:
-{{
-  "titulo": "<título aqui>",
-  "redacao": "<redação completa aqui>"
-}}"""
+{{"titulo": "Um título aqui com máximo 10 palavras", "redacao": "Uma redação completa aqui com introdução, desenvolvimento e conclusão com proposta de intervenção. Deve ter entre 250-300 palavras."}}
+
+Não adicione explicações, código ou markdown. Apenas JSON puro."""
 
 def avaliar_redacao(tema, tipo, titulo, redacao):
     if not GROQ_API_KEY:
@@ -271,7 +264,7 @@ def avaliar_redacao(tema, tipo, titulo, redacao):
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": "Responda APENAS com JSON válido, sem markdown."},
+                {"role": "system", "content": "Você responde APENAS com JSON válido, sem markdown, sem explicações, sem backticks."},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 1500,
@@ -283,10 +276,16 @@ def avaliar_redacao(tema, tipo, titulo, redacao):
         
         data = response.json()
         raw = data['choices'][0]['message']['content'].strip()
+        
+        # Remover markdown code blocks
         raw = re.sub(r'^```json\s*', '', raw)
         raw = re.sub(r'^```\s*', '', raw)
         raw = re.sub(r'\s*```$', '', raw)
-        return json.loads(raw)
+        raw = raw.strip()
+        
+        resultado = json.loads(raw)
+        return resultado
+        
     except requests.exceptions.RequestException as e:
         raise Exception(f"❌ Erro na conexão: {str(e)}")
     except json.JSONDecodeError:
@@ -308,11 +307,11 @@ def gerar_redacao(tema, api_key):
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": "Responda APENAS com JSON válido, sem markdown ou explicações."},
+                {"role": "system", "content": "Você responde APENAS com JSON válido, sem markdown, sem explicações, sem backticks."},
                 {"role": "user", "content": get_generate_prompt(tema)}
             ],
             "max_tokens": 2000,
-            "temperature": 0.7
+            "temperature": 0.5
         }
         
         response = requests.post(url, json=payload, headers=headers, timeout=30)
@@ -320,14 +319,28 @@ def gerar_redacao(tema, api_key):
         
         data = response.json()
         raw = data['choices'][0]['message']['content'].strip()
+        
+        # Remover markdown code blocks
         raw = re.sub(r'^```json\s*', '', raw)
         raw = re.sub(r'^```\s*', '', raw)
         raw = re.sub(r'\s*```$', '', raw)
-        return json.loads(raw)
+        raw = raw.strip()
+        
+        # Tentar fazer parse do JSON
+        resultado = json.loads(raw)
+        
+        # Validar campos obrigatórios
+        if "titulo" not in resultado or "redacao" not in resultado:
+            raise ValueError("Resposta não contém 'titulo' ou 'redacao'")
+        
+        return resultado
+        
     except requests.exceptions.RequestException as e:
         raise Exception(f"❌ Erro na conexão: {str(e)}")
-    except json.JSONDecodeError:
-        raise Exception("❌ Erro ao processar resposta. Tente novamente.")
+    except json.JSONDecodeError as e:
+        raise Exception(f"❌ Erro ao processar JSON: A IA não retornou um formato válido. Tente novamente.")
+    except ValueError as e:
+        raise Exception(f"❌ Campos faltantes na resposta: {str(e)}")
     except Exception as e:
         raise Exception(f"❌ Erro: {str(e)}")
 
