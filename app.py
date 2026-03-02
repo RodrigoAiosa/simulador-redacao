@@ -407,6 +407,7 @@ Responda APENAS com JSON válido, sem nenhum texto antes ou depois:
 def avaliar_redacao(tema: str, tipo: str, titulo: str, redacao: str):
     api_key = GROQ_API_KEY
     
+    # Inicializa cliente Groq
     client = Groq(api_key=api_key)
     prompt = get_feedback_prompt(tema, tipo, titulo, redacao)
 
