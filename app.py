@@ -1,7 +1,7 @@
 import streamlit as st
-from groq import Groq
 import json
 import re
+import requests
 
 # ── PAGE CONFIG ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -210,29 +210,39 @@ def avaliar_redacao(tema, tipo, titulo, redacao):
         raise Exception("🔑 CONFIGURE SUA CHAVE API!\n\n1. Acesse: https://share.streamlit.io\n2. Seu app → ⋮ → Settings → Secrets\n3. Cole: groq_api_key = \"gsk_sua_chave_aqui\"\n4. Save\n\nDepois tente novamente!")
     
     try:
-        client = Groq(api_key=GROQ_API_KEY)
         prompt = get_feedback_prompt(tema, tipo, titulo, redacao)
         
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            max_tokens=1500,
-            temperature=0.3,
-            messages=[
+        # Usar API HTTP do Groq ao invés do SDK (evita erro de proxies)
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
                 {"role": "system", "content": "Responda APENAS com JSON válido, sem markdown."},
                 {"role": "user", "content": prompt}
-            ]
-        )
+            ],
+            "max_tokens": 1500,
+            "temperature": 0.3
+        }
         
-        raw = response.choices[0].message.content.strip()
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        raw = data['choices'][0]['message']['content'].strip()
         raw = re.sub(r'^```json\s*', '', raw)
         raw = re.sub(r'^```\s*', '', raw)
         raw = re.sub(r'\s*```$', '', raw)
         return json.loads(raw)
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"❌ Erro na conexão: {str(e)}")
+    except json.JSONDecodeError:
+        raise Exception("❌ Erro ao processar resposta. Tente novamente.")
     except Exception as e:
-        erro = str(e)
-        if "proxies" in erro.lower():
-            raise Exception("❌ Erro de compatibilidade. Por favor, aguarde alguns segundos e tente novamente.")
-        raise Exception(f"Erro: {erro}")
+        raise Exception(f"❌ Erro: {str(e)}")
 
 # ── APP LAYOUT ───────────────────────────────────────────────────────────────
 
